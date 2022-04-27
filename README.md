@@ -64,31 +64,47 @@ Below are basic steps when exploring the data in those 2 files:
 
 ![](./DE_Capstone_Pipeline.png)
 
-#### Steps description:
+#### Steps description in details from ETL.ipynb
 
 1. Read raw data from S3 using PySpark, and load into:
    1. `imdb_ratings`: ratings data from IMDB rating dataset.
    2. `movielens_ratings`: ratings data from MovieLens rating dataset.
    3. `movielens_metadata`: metadata from Movielens rating dataset.
    4. `imdb_movies_metadata`: metadata from IMDB movies metadata dataset.
-2. From `imdb_movies_metadata`, transform data like below steps:
+2. Load data into `movies_df` table from `imdb_movies_metadata`, transform data like below steps
    1. Select only columns that are defined in data model.
    2. Rename columns to match with data model.
    3. Remove rows with `imdb_id` or `original_title` or `start_year` is null.
    4. Remove duplicate rows for `imdb_id` or combination of `original_title` and `start_year`.
    5. Cast data types for `start_year`, `end_year`, `runtime_minutes` to integer.
-   6. Check `movies_df` integrity:
+   6. Data quality checks for `movies_df`:
       1. `start_year` must larger than or equal to `end_year` if `end_year` is not null.
       2. `runtime_minutes` must larger than 0.
+      3. Every `imdb_id` must exist in `imdb_movies_metadata` data source.
    7. Repartition data by `start_year` to improve performance.
 3. From `imdb_ratings`, `movielens_ratings`, `movielens_movies_metadata`, create temporary view for them.
+4. Load data into `users_df` table:
    1. Union `movielens_ratings` and `imdb_ratings`. Select `userId` (if not null) and `review_id` as `platform_id` and load `platform_id`, `platform` (movielens or imdb) into `users_df`.
    2. Generate `id` for `users_df`.
-   3. Union `imdb_ratings`, `movielens_ratings`. Select `timestamp` and `review_date`, use `DATE_FORMAT` and `FROM_UNIXTIME` function to cast them into timestamp and extract to day, month, year and load into timestamp_df.
-   4. Repartition `timestamp_df` by year and month to improve performance.
-4. Load data from `ratings_df`:
+   3. Data quality checks for `users_df`:
+      1. Check if there is any row that has `platform_id` is null.
+      2. Check if `platform` is either imdb or movielens.
+      3. Check if there is any row that has `id` is null.
+      4. Check if every row has valid `platform_id` when joining with data source.
+5. Load data into `timestamp_df`:
+   1. Union `imdb_ratings`, `movielens_ratings`. Select `timestamp` and `review_date`, use `DATE_FORMAT` and `FROM_UNIXTIME` function to cast them into timestamp and extract to day, month, year and load into timestamp_df.
+   2. Repartition `timestamp_df` by year and month to improve performance.
+   3. Data quality checks for `timestamp_df`:
+      1. Check for null timestamp.
+      2. Check for duplicate timestamp.
+      3. Check data extraction correctly from timestamp to day, month, year.
+6. Load data from `ratings_df`:
    1. Create staging table: `imdb_ratings_split_movies_and_years` by extracting original title and start year from `imdb_ratings` title because `imdb_ratings` does not have `imdb_id` so we have to use `original_title` and `start_year` to search in `movies_df`.
    2. Join `movielens_ratings`, `movielens_metadata`, `movies_df`, `users` and union with the joining of `movies_df`, `imdb_ratings_split_movies_and_years`, `users` and load data into `ratings_df`.
+   3. Data quality checks for `ratings_df`:
+      1. Use `leftanti` join with other dim tables to check every foreign key is correct.
+      2. Check `score` is from 0-5.
+      3. Check if `score` has no null value.
 
 ## Step 4: Run ETL to Model the Data
 
