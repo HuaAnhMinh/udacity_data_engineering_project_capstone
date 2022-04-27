@@ -118,8 +118,39 @@ Each destination tables will have a data quality checks after loading data. Data
 
 * What is the goal: analytics table for analyzing the rating for each movie from different platform.
 * What queries will you want to run:
-   * 1
-   * 2
+
+1. Top 5 movies that have the highest score
+```sparksql
+SELECT r.movie_id, m.original_title, m.start_year, AVG(score) AS average_score
+FROM ratings r
+INNER JOIN movies m
+    ON r.movie_id = m.imdb_id
+GROUP BY 1, 2, 3
+ORDER BY average_score DESC
+LIMIT 5
+```
+
+2. Top 5 movies that have the highest number of rating users
+```sparksql
+SELECT r.movie_id, m.original_title, m.start_year, COUNT(*) AS count_ratings
+FROM ratings r
+INNER JOIN movies m
+    ON r.movie_id = m.imdb_id
+GROUP BY 1, 2, 3
+ORDER BY count_ratings DESC
+LIMIT 5
+```
+
+3. Top 5 users watch the most number of movies
+```sparksql
+SELECT u.id, u.platform_id, u.platform, COUNT(*) AS count_watched_movies
+FROM users u
+INNER JOIN ratings r
+    ON u.id = r.user_id
+GROUP BY 1, 2, 3
+ORDER BY count_watched_movies DESC
+LIMIT 5
+```
 * How would Spark or Airflow be incorporated:
    * Spark: used to do the ETL, extract data from S3, transform and load data into tables.
    * Airflow: ochestrate and schedule the pipeline to run.
